@@ -1,21 +1,57 @@
-use actix_web::{web, App, HttpServer, HttpResponse, HttpRequest, Result};
+use actix_web::{web, App, HttpServer, HttpResponse, HttpRequest, middleware};
+use actix_cors::Cors;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
 use std::io::Write;
-use std::collections::HashMap;
 use log::{debug, error};
 use std::fs;
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use lazy_static::lazy_static;
+// Импортируем наши модули
+mod models;
+mod handlers;
+
+use models::db::Database;
+use handlers::api;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
-    HttpServer::new(|| {
+    // Создаем каталог для репозиториев, если он не существует
+    if !std::path::Path::new("repositories").exists() {
+        std::fs::create_dir("repositories")?;
+    }
+    
+    // Инициализируем базу данных
+    let db = Database::new().expect("Failed to initialize database");
+
+    HttpServer::new(move || {
+        // Настройка CORS для взаимодействия с React
+        let cors = Cors::default()
+            .allowed_origin("http://localhost:3000")
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+            .allowed_headers(vec!["Authorization", "Content-Type"])
+            .supports_credentials()
+            .max_age(3600);
+
         App::new()
-            // Smart HTTP Protocol endpoints
+            // Добавляем middleware
+            .wrap(middleware::Logger::default())
+            .wrap(cors)
+            // Данные приложения
+            .app_data(web::Data::new(db.clone()))
+            
+            // API для аутентификации и пользователей
+            .service(web::resource("/api/auth/login").route(web::post().to(api::login)))
+            .service(web::resource("/api/auth/register").route(web::post().to(api::register)))
+            .service(web::resource("/api/user/profile").route(web::get().to(api::user_profile)))
+            
+            // API для репозиториев
+            .service(web::resource("/api/repos").route(web::get().to(api::list_repos)))
+            .service(web::resource("/api/repos").route(web::post().to(api::create_repo)))
+            .service(web::resource("/api/repos/{repo_name}").route(web::get().to(api::get_repo)))
+            
+            // Smart HTTP Protocol endpoints для Git
             .service(web::resource("/git/{repo_name}/info/refs")
                 .route(web::get().to(handle_info_refs)))
             .service(web::resource("/git/{repo_name}/git-upload-pack")
@@ -27,7 +63,7 @@ async fn main() -> std::io::Result<()> {
                 .route(web::get().to(handle_info_packs)))
             .service(web::resource("/git/{repo_name}/objects/pack/{pack_file}")
                 .route(web::get().to(handle_pack_file)))
-            // Text file endpoint - используем path param для оставшейся части пути
+            // Text file endpoint
             .service(web::resource("/git/{repo_name}/file/{tail:.*}")
                 .route(web::get().to(handle_text_file)))
     })
@@ -36,52 +72,12 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-// Простая "база данных" пользователей
-lazy_static! {
-    static ref USERS: HashMap<String, String> = {
-        let mut m = HashMap::new();
-        m.insert("Kazilsky".to_string(), "password123".to_string());
-        m
-    };
-}
-
-// Проверка авторизации
-fn check_auth(req: &HttpRequest) -> Option<String> {
-    // Получаем заголовок Authorization
-    let auth_header = req.headers().get("Authorization")?;
-    let auth_str = auth_header.to_str().ok()?;
-    
-    // Проверяем, что это Basic Auth
-    if !auth_str.starts_with("Basic ") {
-        return None;
-    }
-
-    // Декодируем Base64
-    let credentials = BASE64.decode(auth_str.trim_start_matches("Basic "))
-        .ok()?;
-    let credentials_str = String::from_utf8(credentials).ok()?;
-    
-    // Разделяем на username:password
-    let mut parts = credentials_str.splitn(2, ':');
-    let username = parts.next()?;
-    let password = parts.next()?;
-
-    // Проверяем пароль
-    if let Some(stored_password) = USERS.get(username) {
-        if password == stored_password {
-            return Some(username.to_string());
-        }
-    }
-    log!("{}", credentials_str)
-    None
-}
-
 /// Обработчик для /info/refs - первый этап Git протокола
 /// Когда клиент выполняет git clone/pull/push, он сначала запрашивает этот эндпоинт
 /// чтобы узнать, какие ссылки (refs) доступны на сервере и какие операции поддерживаются
 async fn handle_info_refs(req: HttpRequest) -> HttpResponse {
     // Проверяем авторизацию
-    if check_auth(&req).is_none() {
+    if api::check_auth(&req, &req.app_data::<web::Data<Database>>().unwrap()).is_none() {
         return HttpResponse::Unauthorized()
             .append_header(("WWW-Authenticate", "Basic realm=\"Git\""))
             .finish();
@@ -120,19 +116,22 @@ async fn handle_info_refs(req: HttpRequest) -> HttpResponse {
     let mut response = Vec::new();
     
     // PKT-LINE формат:
-    // - первые 4 символа - длина строки в hex (включая сами 4 символа)
-    // - затем содержимое строки
-    let header = format!("# service={}\n", service);
-    let header_len = format!("{:04x}", header.len() + 4);
-    response.write_all(header_len.as_bytes()).unwrap();
-    response.write_all(header.as_bytes()).unwrap();
+    // <4-byte length><payload>
+    // Где <4-byte length> - это ASCII hex длина пакета (включая 4 байта длины)
     
-    // Flush-pkt (0000) - разделитель в протоколе
-    response.write_all(b"0000").unwrap();
+    // Сервисный заголовок
+    let service_header = format!("# service={}\n", service);
+    let header_length = service_header.len() + 4; // +4 для самой длины
+    response.extend_from_slice(format!("{:04x}", header_length).as_bytes());
+    response.extend_from_slice(service_header.as_bytes());
     
-    // Добавляем список ссылок от git команды
-    response.write_all(&output.stdout).unwrap();
-
+    // Разделитель
+    response.extend_from_slice(b"0000");
+    
+    // Добавляем вывод git-*-pack --advertise-refs
+    response.extend_from_slice(&output.stdout);
+    
+    // Возвращаем результат
     HttpResponse::Ok()
         .content_type(format!("application/x-{}-advertisement", service))
         .body(response)
@@ -142,7 +141,7 @@ async fn handle_info_refs(req: HttpRequest) -> HttpResponse {
 /// Клиент запрашивает определенные объекты, сервер их упаковывает и отправляет
 async fn handle_upload_pack(req: HttpRequest, body: web::Bytes) -> HttpResponse {
     // Проверяем авторизацию
-    if check_auth(&req).is_none() {
+    if api::check_auth(&req, &req.app_data::<web::Data<Database>>().unwrap()).is_none() {
         return HttpResponse::Unauthorized()
             .append_header(("WWW-Authenticate", "Basic realm=\"Git\""))
             .finish();
@@ -186,8 +185,8 @@ async fn handle_upload_pack(req: HttpRequest, body: web::Bytes) -> HttpResponse 
 /// Клиент отправляет новые объекты, сервер их принимает и обновляет ссылки
 async fn handle_receive_pack(req: HttpRequest, body: web::Bytes) -> HttpResponse {
     // Проверяем авторизацию
-    let username = match check_auth(&req) {
-        Some(username) => username,
+    let _username = match api::check_auth(&req, &req.app_data::<web::Data<Database>>().unwrap()) {
+        Some(user) => user.username,
         None => return HttpResponse::Unauthorized()
             .append_header(("WWW-Authenticate", "Basic realm=\"Git\""))
             .finish()
@@ -265,26 +264,19 @@ async fn handle_text_file(req: HttpRequest) -> HttpResponse {
     let repo_name = req.match_info().get("repo_name").unwrap();
     let path = req.match_info().get("tail").unwrap();
     
-    debug!("Handling text file request for repo: {}, path: {}", repo_name, path);
-
-    let repo_path = PathBuf::from("repositories")
-        .join(format!("{}.git", repo_name));
-
+    debug!("Getting file: {} from repo: {}", path, repo_name);
+    
     // Используем git show для получения содержимого файла
     let output = Command::new("git")
-        .arg("--git-dir")
-        .arg(&repo_path)
-        .arg("show")
-        .arg(format!("HEAD:{}", path))
-        .output()
-        .expect("Failed to execute git show");
-
-    if output.status.success() {
-        HttpResponse::Ok()
-            .content_type("text/plain")
-            .body(output.stdout)
-    } else {
-        debug!("File not found or error: {}", String::from_utf8_lossy(&output.stderr));
-        HttpResponse::NotFound().finish()
+        .args(&["--git-dir", &format!("repositories/{}.git", repo_name), "show", &format!("HEAD:{}", path)])
+        .output();
+    
+    match output {
+        Ok(output) if output.status.success() => {
+            HttpResponse::Ok()
+                .content_type("text/plain")
+                .body(output.stdout)
+        },
+        _ => HttpResponse::NotFound().finish()
     }
 }

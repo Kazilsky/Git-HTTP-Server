@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gitea Клон{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">Gitea Клон</a>
+                <nav>
+                    <ul>
+                        <li><a href="/">Главная</a></li>
+                        <li><a href="/explore">Репозитории</a></li>
+                        <li><a href="/docs">Документация</a></li>
+                    </ul>
+                </nav>
+                <div class="auth">
+                    {% if user %}
+                        <a href="/user/{{ user.username }}" class="profile">{{ user.username }}</a>
+                        <a href="/repo/new" class="btn btn-sm">Новый репозиторий</a>
+                    {% else %}
+                        <a href="/login">Вход</a>
+                        <a href="/register" class="btn btn-sm">Регистрация</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 Gitea Клон - Учебный проект</p>
+        </div>
+    </footer>
+    
+    <script src="/static/js/main.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html> 

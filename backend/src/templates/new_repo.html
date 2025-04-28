@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Новый репозиторий - Gitea Клон{% endblock %}
+
+{% block content %}
+<div class="new-repo-page">
+    <h1>Создание нового репозитория</h1>
+    
+    <form action="/repo/new" method="post" class="new-repo-form">
+        <div class="form-group">
+            <label for="name">Название репозитория*</label>
+            <input type="text" id="name" name="name" required>
+            <p class="form-help">Используйте только буквы, цифры, дефисы и подчеркивания</p>
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Описание (опционально)</label>
+            <textarea id="description" name="description" rows="3"></textarea>
+        </div>
+        
+        <div class="form-group visibility-options">
+            <label>Видимость</label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="is_public" value="true" checked>
+                    <span>Публичный</span>
+                    <p>Все пользователи могут видеть этот репозиторий</p>
+                </label>
+                <label>
+                    <input type="radio" name="is_public" value="false">
+                    <span>Приватный</span>
+                    <p>Только вы имеете доступ к этому репозиторию</p>
+                </label>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Создать репозиторий</button>
+        </div>
+    </form>
+</div>
+{% endblock %} 

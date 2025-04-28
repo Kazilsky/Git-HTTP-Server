@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Главная - Gitea Клон{% endblock %}
+
+{% block content %}
+<div class="home-page">
+    <section class="hero">
+        <h1>Ваш собственный Git сервер</h1>
+        <p>Простое и удобное решение для размещения и совместной работы над Git репозиториями</p>
+        {% if not user %}
+        <div class="cta-buttons">
+            <a href="/register" class="btn btn-lg">Начать использовать</a>
+            <a href="/docs" class="btn btn-outline btn-lg">Узнать больше</a>
+        </div>
+        {% endif %}
+    </section>
+
+    {% if user %}
+    <section class="user-repos">
+        <div class="section-header">
+            <h2>Ваши репозитории</h2>
+            <a href="/repo/new" class="btn">Новый репозиторий</a>
+        </div>
+        
+        {% if repos and repos|length > 0 %}
+        <div class="repo-list">
+            {% for repo in repos %}
+            <div class="repo-card">
+                <h3><a href="/repo/{{ repo.name }}">{{ repo.name }}</a></h3>
+                <p>{{ repo.description | default(value="Нет описания") }}</p>
+                <div class="repo-meta">
+                    <span class="visibility">{% if repo.is_public %}"Публичный"{% else %}"Приватный"{% endif %}</span>
+                    <span class="created-at">Создан: {{ repo.created_at }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>У вас пока нет репозиториев. <a href="/repo/new">Создайте свой первый репозиторий</a>.</p>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="features">
+        <h2>Возможности</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>Простота использования</h3>
+                <p>Интуитивно понятный интерфейс для работы с Git репозиториями</p>
+            </div>
+            <div class="feature-card">
+                <h3>Поддержка Git-протокола</h3>
+                <p>Полная поддержка Git Smart HTTP Protocol для клонирования, отправки и получения изменений</p>
+            </div>
+            <div class="feature-card">
+                <h3>Совместная работа</h3>
+                <p>Удобные инструменты для совместной работы над кодом</p>
+            </div>
+            <div class="feature-card">
+                <h3>Просмотр кода</h3>
+                <p>Встроенный браузер кода для просмотра файлов и изменений</p>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %} 

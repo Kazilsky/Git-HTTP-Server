@@ -1,2 +1,9 @@
-/target
-/repositories/*
+frontend-react/node_modules
+frontend-react/.env
+frontend-react/.env.local
+frontend-react/.env.development.local
+frontend-react/.env.test.local
+frontend-react/.env.production.local
+
+backend/target
+backend/.env

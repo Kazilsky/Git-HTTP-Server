@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{{ file_path }} - {{ repo_name }} - Gitea Клон{% endblock %}
+
+{% block content %}
+<div class="file-page">
+    <div class="repo-header">
+        <h1><a href="/repo/{{ repo_name }}">{{ repo_name }}</a> / <span class="file-path">{{ file_path }}</span></h1>
+    </div>
+
+    <div class="file-info">
+        <div class="branch-info">
+            <span>Ветка: <strong>{{ branch }}</strong></span>
+        </div>
+    </div>
+
+    <div class="file-content">
+        <div class="code-block">
+            <pre><code>{{ content }}</code></pre>
+        </div>
+    </div>
+
+    <div class="file-actions">
+        <a href="/repo/{{ repo_name }}/raw/{{ branch }}/{{ file_path }}" class="btn btn-sm">Просмотр в сыром виде</a>
+        <a href="/repo/{{ repo_name }}/blame/{{ branch }}/{{ file_path }}" class="btn btn-sm">Blame</a>
+        <a href="/repo/{{ repo_name }}/history/{{ branch }}/{{ file_path }}" class="btn btn-sm">История</a>
+    </div>
+</div>
+{% endblock %} 

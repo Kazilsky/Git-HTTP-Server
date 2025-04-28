@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Документация - Gitea Клон{% endblock %}
+
+{% block content %}
+<div class="docs-page">
+    <h1>Документация Gitea Клон</h1>
+    
+    <div class="docs-content">
+        <aside class="docs-sidebar">
+            <ul>
+                <li><a href="#overview">Обзор</a></li>
+                <li><a href="#installation">Установка</a></li>
+                <li><a href="#usage">Использование</a></li>
+                <li><a href="#api">API</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ul>
+        </aside>
+        
+        <div class="docs-main">
+            <section id="overview">
+                <h2>Обзор</h2>
+                <p>Gitea Клон - это простой сервер Git, построенный на базе Rust и Actix Web. Он предоставляет базовую функциональность Gitea или GitHub, позволяя пользователям создавать репозитории, управлять ими и совместно работать над кодом.</p>
+                
+                <h3>Основные функции</h3>
+                <ul>
+                    <li>Полная поддержка Git Smart HTTP Protocol</li>
+                    <li>Пользовательские аккаунты и аутентификация</li>
+                    <li>Управление репозиториями</li>
+                    <li>Просмотр кода и истории изменений</li>
+                    <li>Базовая интеграция с Git клиентами</li>
+                </ul>
+            </section>
+            
+            <section id="installation">
+                <h2>Установка</h2>
+                <p>Для запуска Gitea Клон вам понадобится Rust и система контроля версий Git.</p>
+                
+                <h3>Шаги установки:</h3>
+                <ol>
+                    <li>Клонируйте репозиторий: <code>git clone https://github.com/your-username/gitea-clone.git</code></li>
+                    <li>Перейдите в каталог проекта: <code>cd gitea-clone</code></li>
+                    <li>Создайте каталог для репозиториев: <code>mkdir repositories</code></li>
+                    <li>Запустите сервер: <code>cargo run</code></li>
+                </ol>
+                
+                <p>Сервер будет доступен по адресу <code>http://localhost:8000</code>.</p>
+            </section>
+            
+            <section id="usage">
+                <h2>Использование</h2>
+                
+                <h3>Создание репозитория</h3>
+                <ol>
+                    <li>Зарегистрируйтесь или войдите в систему</li>
+                    <li>Нажмите кнопку "Новый репозиторий"</li>
+                    <li>Заполните форму создания репозитория</li>
+                    <li>Нажмите "Создать репозиторий"</li>
+                </ol>
+                
+                <h3>Клонирование репозитория</h3>
+                <p>Для клонирования репозитория используйте обычную команду Git:</p>
+                <pre><code>git clone http://localhost:8000/git/repository-name</code></pre>
+                
+                <h3>Отправка изменений</h3>
+                <p>Для отправки изменений в репозиторий используйте стандартные команды Git:</p>
+                <pre><code>git add .
+git commit -m "Commit message"
+git push origin master</code></pre>
+            </section>
+            
+            <section id="api">
+                <h2>API</h2>
+                <p>Gitea Клон предоставляет следующие API эндпоинты:</p>
+                
+                <h3>Git API</h3>
+                <ul>
+                    <li><code>GET /git/{repo_name}/info/refs?service=git-upload-pack</code> - для клонирования/получения изменений</li>
+                    <li><code>POST /git/{repo_name}/git-upload-pack</code> - для передачи объектов при клонировании</li>
+                    <li><code>GET /git/{repo_name}/info/refs?service=git-receive-pack</code> - для отправки изменений</li>
+                    <li><code>POST /git/{repo_name}/git-receive-pack</code> - для передачи объектов при отправке</li>
+                </ul>
+                
+                <h3>Веб API</h3>
+                <ul>
+                    <li><code>GET /api/v1/repos/{username}/{repo_name}</code> - получение информации о репозитории</li>
+                    <li><code>GET /api/v1/repos/{username}/{repo_name}/commits</code> - получение коммитов репозитория</li>
+                    <li><code>GET /api/v1/repos/{username}/{repo_name}/contents/{path}</code> - получение содержимого файла</li>
+                </ul>
+            </section>
+            
+            <section id="faq">
+                <h2>Часто задаваемые вопросы</h2>
+                
+                <h3>Как изменить порт сервера?</h3>
+                <p>Для изменения порта отредактируйте файл <code>src/main.rs</code> и измените строку <code>.bind("127.0.0.1:8000")</code>.</p>
+                
+                <h3>Как добавить SSH доступ?</h3>
+                <p>В текущей версии поддерживается только HTTP протокол. SSH доступ планируется добавить в будущих версиях.</p>
+                
+                <h3>Где хранятся данные?</h3>
+                <p>Репозитории хранятся в каталоге <code>repositories/</code>, а данные пользователей и метаданные - в SQLite базе данных <code>gitea.db</code>.</p>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %} 
