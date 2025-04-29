@@ -25,7 +25,7 @@ const HomePage: React.FC = () => {
       try {
         const response = await fetch('http://localhost:8000/api/repos', {
           headers: {
-            'Authorization': `Basic ${btoa('username:password')}` // Replace with actual auth
+            'Authorization': `Basic ${btoa('Kazilsky:password123')}` // Replace with actual auth
           }
         });
 

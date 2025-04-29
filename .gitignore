@@ -7,3 +7,6 @@ frontend-react/.env.production.local
 
 backend/target
 backend/.env
+
+sqlite_practice/target
+sqlite_practice/tasks.db

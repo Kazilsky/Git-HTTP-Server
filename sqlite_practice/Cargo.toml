@@ -1,0 +1,11 @@
+[package]
+name = "sqlite_practice"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rusqlite = "0.29.0"  # SQLite обертка для Rust
+tokio = { version = "1.29.1", features = ["full"] }  # Асинхронность
+anyhow = "1.0.72"  # Обработка ошибок
+rand = "0.8.5"  # Для генерации тестовых данных
+serde = { version = "1.0.171", features = ["derive"] }  # Сериализация/десериализация 
