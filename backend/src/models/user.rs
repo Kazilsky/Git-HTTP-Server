@@ -52,8 +52,8 @@ impl User {
     /// 
     /// * `Result<Option<User>>` - Найденный пользователь или None
     pub fn find_by_username(username: &str, conn: Arc<Mutex<Connection>>) -> Result<Option<User>> {
-        let conn = conn.lock().unwrap();
-        
+        let conn = conn.lock().map_err(|_| rusqlite::Error::InvalidQuery)?;        
+
         let mut stmt = conn.prepare("SELECT id, username, password, email, created_at FROM users WHERE username = ?1")?;
         let mut rows = stmt.query(params![username])?;
         

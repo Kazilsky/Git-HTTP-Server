@@ -2,6 +2,7 @@ use actix_web::{web, HttpResponse, HttpRequest, Result};
 use crate::models::db::Database;
 use crate::models::user::User;
 use crate::models::repository::Repository;
+use crate::models::notification::Notification;
 use log::error;
 use serde::{Serialize, Deserialize};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -62,6 +63,10 @@ pub fn check_auth(req: &HttpRequest, db: &web::Data<Database>) -> Option<User> {
         Ok(Some(user)) => Some(user),
         _ => None
     }
+}
+
+pub fn check_notification(req: &HttpResponse, db: &web::Data<Database>) -> Option<Notification> {
+
 }
 
 /// Обработчик для авторизации пользователя

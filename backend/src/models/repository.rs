@@ -108,7 +108,14 @@ impl Repository {
                 owner_id: row.get(2)?,
                 description: row.get(3)?,
                 is_public: row.get(4)?,
-                created_at: Some(DateTime::parse_from_rfc3339(&created_at).unwrap().with_timezone(&Utc)),
+                
+                created_at: match DateTime::parse_from_rfc3339(&created_at) {
+                    Ok(dt) => Some(dt.with_timezone(&Utc)),
+                    Err(e) => {
+                        println!("Ошибка при парсинге даты '{}': {:?}", created_at, e);
+                        None
+                    }
+                },
             })
         })?;
         
