@@ -4,6 +4,7 @@ frontend-react/.env.local
 frontend-react/.env.development.local
 frontend-react/.env.test.local
 frontend-react/.env.production.local
+frontend-react/debug.log
 
 backend/target
 backend/.env
