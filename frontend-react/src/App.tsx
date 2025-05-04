@@ -6,6 +6,7 @@ import './index.css';
 import Header from './components/Header';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
+import RepoPage from './pages/RepoPage';
 
 interface User {
   id: number;
@@ -41,23 +42,26 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen flex flex-col bg-gray-100">
-        <Header user={user} onLogout={handleLogout} />
         <main className="flex-grow">
+          { user ? <Header user={user} onLogout={handleLogout} /> : null } 
           <Routes>
+          
             <Route path="/" element={
               user ? <HomePage /> : <Navigate to="/login" />
             } />
             <Route path="/login" element={
               user ? <Navigate to="/" /> : <LoginPage onLogin={handleLogin} />
             } />
-            {/* Add more routes here as needed */}
+
+            <Route path="/repo/:name" element={
+              user ? <RepoPage/> : <LoginPage onLogin={handleLogin} />
+            } />
+            <Route path="/repo/:name/:branch" element={
+              user ? <RepoPage/> : <LoginPage onLogin={handleLogin} />
+            } />
+ 
           </Routes>
         </main>
-        <footer className="bg-gray-800 text-white py-4">
-          <div className="container mx-auto px-4 text-center">
-            <p>Git HTTP Server &copy; {new Date().getFullYear()}</p>
-          </div>
-        </footer>
       </div>
     </Router>
   );

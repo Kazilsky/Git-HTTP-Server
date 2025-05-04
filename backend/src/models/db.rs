@@ -24,7 +24,7 @@ impl Database {
                 username TEXT NOT NULL UNIQUE,
                 password TEXT NOT NULL,
                 email TEXT UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )",
             [],
         )?;
@@ -36,7 +36,7 @@ impl Database {
                 owner_id INTEGER NOT NULL,
                 description TEXT,
                 is_public BOOLEAN NOT NULL DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (owner_id) REFERENCES users (id),
                 UNIQUE (name, owner_id)
             )",

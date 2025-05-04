@@ -1,7 +1,6 @@
 use rusqlite::{params, Result};
 use std::sync::{Arc, Mutex};
 use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use std::process::Command;
 use std::path::Path;
@@ -21,7 +20,7 @@ pub struct Repository {
     /// Флаг публичности репозитория
     pub is_public: bool,
     /// Дата создания репозитория
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<String>,
 }
 
 impl Repository {
@@ -100,15 +99,13 @@ impl Repository {
         )?;
         
         let repos = stmt.query_map(params![owner_id], |row| {
-            let created_at: String = row.get(5)?;
-            
             Ok(Repository {
                 id: Some(row.get(0)?),
                 name: row.get(1)?,
                 owner_id: row.get(2)?,
                 description: row.get(3)?,
                 is_public: row.get(4)?,
-                created_at: Some(DateTime::parse_from_rfc3339(&created_at).unwrap().with_timezone(&Utc)),
+                created_at: row.get(5)?
             })
         })?;
         
@@ -148,7 +145,7 @@ impl Repository {
                 owner_id: row.get(2)?,
                 description: row.get(3)?,
                 is_public: row.get(4)?,
-                created_at: Some(DateTime::parse_from_rfc3339(&created_at).unwrap().with_timezone(&Utc)),
+                created_at: row.get(5)?,
             }))
         } else {
             Ok(None)
