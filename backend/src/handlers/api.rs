@@ -2,7 +2,9 @@ use actix_web::{web, HttpResponse, HttpRequest, Result};
 use crate::models::db::Database;
 use crate::models::user::User;
 use crate::models::repository::Repository;
-use log::error;
+use crate::models::notification::Notification;
+use crate::models::pull_request::{PullRequest, PullRequestComment, PullRequestStatus};
+use log::{debug, error};
 use serde::{Serialize, Deserialize};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::process::Command;
@@ -254,14 +256,14 @@ pub async fn create_repo(
 
 /// Получение информации о репозитории
 pub async fn get_repo(
-    _req: HttpRequest,
+    req: HttpRequest,
     path: web::Path<String>,
     db: web::Data<Database>
 ) -> Result<HttpResponse> {
     let repo_name = path.into_inner();
     let conn = db.get_connection();
     
-    match Repository::find_by_name(&repo_name, conn) {
+    match Repository::find_by_name(&repo_name, conn.clone()) {
         Ok(Some(repo)) => {
             // Получаем ветки репозитория
             let repo_path = format!("repositories/{}.git", repo_name);
@@ -277,10 +279,20 @@ pub async fn get_repo(
                 _ => Vec::new(),
             };
             
+            // Получаем пул-реквесты для репозитория
+            let pull_requests = match PullRequest::find_by_repository(repo.id.unwrap(), conn) {
+                Ok(prs) => prs,
+                Err(e) => {
+                    error!("Failed to fetch pull requests: {}", e);
+                    Vec::new()
+                }
+            };
+            
             #[derive(Serialize)]
             struct RepoDetails {
                 repo: Repository,
                 branches: Vec<String>,
+                pull_requests: Vec<PullRequest>,
             }
             
             Ok(HttpResponse::Ok().json(ApiResponse {
@@ -289,6 +301,7 @@ pub async fn get_repo(
                 data: Some(RepoDetails {
                     repo,
                     branches,
+                    pull_requests,
                 }),
             }))
         },
@@ -308,4 +321,442 @@ pub async fn get_repo(
             }))
         }
     }
-} 
+}
+
+// Структуры запросов для пул-реквестов
+#[derive(Serialize, Deserialize)]
+pub struct CreatePullRequestRequest {
+    pub title: String,
+    pub description: Option<String>,
+    pub source_branch: String,
+    pub target_branch: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CreateCommentRequest {
+    pub content: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdatePullRequestStatusRequest {
+    pub status: String,
+}
+
+/// Создание нового пул-реквеста
+pub async fn create_pull_request(
+    req: HttpRequest,
+    path: web::Path<String>,
+    pr_req: web::Json<CreatePullRequestRequest>,
+    db: web::Data<Database>
+) -> Result<HttpResponse> {
+    if let Some(user) = check_auth(&req, &db) {
+        let repo_name = path.into_inner();
+        let conn = db.get_connection();
+        
+        // Находим репозиторий по имени
+        match Repository::find_by_name(&repo_name, conn.clone()) {
+            Ok(Some(repo)) => {
+                // Создаем пул-реквест
+                let pull_request = PullRequest {
+                    id: None,
+                    title: pr_req.title.clone(),
+                    description: pr_req.description.clone(),
+                    repository_id: repo.id.unwrap(),
+                    source_branch: pr_req.source_branch.clone(),
+                    target_branch: pr_req.target_branch.clone(),
+                    author_id: user.id.unwrap(),
+                    status: PullRequestStatus::Open,
+                    created_at: None,
+                    updated_at: None,
+                };
+                
+                match pull_request.create(conn) {
+                    Ok(_) => {
+                        Ok(HttpResponse::Ok().json(ApiResponse {
+                            success: true,
+                            message: Some("Pull request created successfully".to_string()),
+                            data: Some(pull_request),
+                        }))
+                    },
+                    Err(e) => {
+                        error!("Failed to create pull request: {}", e);
+                        Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                            success: false,
+                            message: Some("Failed to create pull request".to_string()),
+                            data: None,
+                        }))
+                    }
+                }
+            },
+            Ok(None) => {
+                Ok(HttpResponse::NotFound().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Repository not found".to_string()),
+                    data: None,
+                }))
+            },
+            Err(e) => {
+                error!("Database error: {}", e);
+                Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Database error".to_string()),
+                    data: None,
+                }))
+            }
+        }
+    } else {
+        Ok(HttpResponse::Unauthorized().json(ApiResponse::<()> {
+            success: false,
+            message: Some("Unauthorized".to_string()),
+            data: None,
+        }))
+    }
+}
+
+/// Получение информации о пул-реквесте
+pub async fn get_pull_request(
+    req: HttpRequest,
+    path: web::Path<(String, i64)>,
+    db: web::Data<Database>
+) -> Result<HttpResponse> {
+    if let Some(_) = check_auth(&req, &db) {
+        let (repo_name, pr_id) = path.into_inner();
+        let conn = db.get_connection();
+        
+        // Находим репозиторий по имени
+        match Repository::find_by_name(&repo_name, conn.clone()) {
+            Ok(Some(_)) => {
+                // Находим пул-реквест по ID
+                match PullRequest::find_by_id(pr_id, conn.clone()) {
+                    Ok(Some(pr)) => {
+                        // Получаем комментарии к пул-реквесту
+                        let comments = match PullRequestComment::find_by_pull_request(pr_id, conn) {
+                            Ok(comments) => comments,
+                            Err(e) => {
+                                error!("Failed to fetch comments: {}", e);
+                                Vec::new()
+                            }
+                        };
+                        
+                        #[derive(Serialize)]
+                        struct PullRequestDetails {
+                            pull_request: PullRequest,
+                            comments: Vec<PullRequestComment>,
+                        }
+                        
+                        Ok(HttpResponse::Ok().json(ApiResponse {
+                            success: true,
+                            message: None,
+                            data: Some(PullRequestDetails {
+                                pull_request: pr,
+                                comments,
+                            }),
+                        }))
+                    },
+                    Ok(None) => {
+                        Ok(HttpResponse::NotFound().json(ApiResponse::<()> {
+                            success: false,
+                            message: Some("Pull request not found".to_string()),
+                            data: None,
+                        }))
+                    },
+                    Err(e) => {
+                        error!("Database error: {}", e);
+                        Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                            success: false,
+                            message: Some("Database error".to_string()),
+                            data: None,
+                        }))
+                    }
+                }
+            },
+            Ok(None) => {
+                Ok(HttpResponse::NotFound().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Repository not found".to_string()),
+                    data: None,
+                }))
+            },
+            Err(e) => {
+                error!("Database error: {}", e);
+                Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Database error".to_string()),
+                    data: None,
+                }))
+            }
+        }
+    } else {
+        Ok(HttpResponse::Unauthorized().json(ApiResponse::<()> {
+            success: false,
+            message: Some("Unauthorized".to_string()),
+            data: None,
+        }))
+    }
+}
+
+/// Добавление комментария к пул-реквесту
+pub async fn add_comment_to_pull_request(
+    req: HttpRequest,
+    path: web::Path<(String, i64)>,
+    comment_req: web::Json<CreateCommentRequest>,
+    db: web::Data<Database>
+) -> Result<HttpResponse> {
+    if let Some(user) = check_auth(&req, &db) {
+        let (repo_name, pr_id) = path.into_inner();
+        let conn = db.get_connection();
+        
+        // Находим репозиторий по имени
+        match Repository::find_by_name(&repo_name, conn.clone()) {
+            Ok(Some(_)) => {
+                // Находим пул-реквест по ID
+                match PullRequest::find_by_id(pr_id, conn.clone()) {
+                    Ok(Some(_)) => {
+                        // Создаем комментарий
+                        let comment = PullRequestComment {
+                            id: None,
+                            pull_request_id: pr_id,
+                            author_id: user.id.unwrap(),
+                            content: comment_req.content.clone(),
+                            created_at: None,
+                        };
+                        
+                        match comment.create(conn) {
+                            Ok(_) => {
+                                Ok(HttpResponse::Ok().json(ApiResponse {
+                                    success: true,
+                                    message: Some("Comment added successfully".to_string()),
+                                    data: Some(comment),
+                                }))
+                            },
+                            Err(e) => {
+                                error!("Failed to create comment: {}", e);
+                                Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                                    success: false,
+                                    message: Some("Failed to create comment".to_string()),
+                                    data: None,
+                                }))
+                            }
+                        }
+                    },
+                    Ok(None) => {
+                        Ok(HttpResponse::NotFound().json(ApiResponse::<()> {
+                            success: false,
+                            message: Some("Pull request not found".to_string()),
+                            data: None,
+                        }))
+                    },
+                    Err(e) => {
+                        error!("Database error: {}", e);
+                        Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                            success: false,
+                            message: Some("Database error".to_string()),
+                            data: None,
+                        }))
+                    }
+                }
+            },
+            Ok(None) => {
+                Ok(HttpResponse::NotFound().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Repository not found".to_string()),
+                    data: None,
+                }))
+            },
+            Err(e) => {
+                error!("Database error: {}", e);
+                Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Database error".to_string()),
+                    data: None,
+                }))
+            }
+        }
+    } else {
+        Ok(HttpResponse::Unauthorized().json(ApiResponse::<()> {
+            success: false,
+            message: Some("Unauthorized".to_string()),
+            data: None,
+        }))
+    }
+}
+
+/// Обновление статуса пул-реквеста
+pub async fn update_pull_request_status(
+    req: HttpRequest,
+    path: web::Path<(String, i64)>,
+    status_req: web::Json<UpdatePullRequestStatusRequest>,
+    db: web::Data<Database>
+) -> Result<HttpResponse> {
+    if let Some(user) = check_auth(&req, &db) {
+        let (repo_name, pr_id) = path.into_inner();
+        let conn = db.get_connection();
+        
+        // Находим репозиторий по имени
+        match Repository::find_by_name(&repo_name, conn.clone()) {
+            Ok(Some(repo)) => {
+                // Проверяем, что пользователь является владельцем репозитория
+                if repo.owner_id != user.id.unwrap() {
+                    return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
+                        success: false,
+                        message: Some("Only repository owner can update pull request status".to_string()),
+                        data: None,
+                    }));
+                }
+                
+                // Находим пул-реквест по ID
+                match PullRequest::find_by_id(pr_id, conn.clone()) {
+                    Ok(Some(_)) => {
+                        let status = PullRequestStatus::from_str(&status_req.status);
+                        
+                        // Если статус "merged", выполняем слияние веток
+                        if status == PullRequestStatus::Merged {
+                            match PullRequest::merge(pr_id, conn.clone()) {
+                                Ok(_) => {
+                                    Ok(HttpResponse::Ok().json(ApiResponse::<()> {
+                                        success: true,
+                                        message: Some("Pull request merged successfully".to_string()),
+                                        data: None,
+                                    }))
+                                },
+                                Err(e) => {
+                                    error!("Failed to merge pull request: {}", e);
+                                    Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                                        success: false,
+                                        message: Some("Failed to merge pull request".to_string()),
+                                        data: None,
+                                    }))
+                                }
+                            }
+                        } else {
+                            // Просто обновляем статус
+                            match PullRequest::update_status(pr_id, status, conn) {
+                                Ok(_) => {
+                                    Ok(HttpResponse::Ok().json(ApiResponse::<()> {
+                                        success: true,
+                                        message: Some("Pull request status updated successfully".to_string()),
+                                        data: None,
+                                    }))
+                                },
+                                Err(e) => {
+                                    error!("Failed to update pull request status: {}", e);
+                                    Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                                        success: false,
+                                        message: Some("Failed to update pull request status".to_string()),
+                                        data: None,
+                                    }))
+                                }
+                            }
+                        }
+                    },
+                    Ok(None) => {
+                        Ok(HttpResponse::NotFound().json(ApiResponse::<()> {
+                            success: false,
+                            message: Some("Pull request not found".to_string()),
+                            data: None,
+                        }))
+                    },
+                    Err(e) => {
+                        error!("Database error: {}", e);
+                        Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                            success: false,
+                            message: Some("Database error".to_string()),
+                            data: None,
+                        }))
+                    }
+                }
+            },
+            Ok(None) => {
+                Ok(HttpResponse::NotFound().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Repository not found".to_string()),
+                    data: None,
+                }))
+            },
+            Err(e) => {
+                error!("Database error: {}", e);
+                Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Database error".to_string()),
+                    data: None,
+                }))
+            }
+        }
+    } else {
+        Ok(HttpResponse::Unauthorized().json(ApiResponse::<()> {
+            success: false,
+            message: Some("Unauthorized".to_string()),
+            data: None,
+        }))
+    }
+}
+
+/// Получение уведомлений пользователя
+pub async fn get_notifications(
+    req: HttpRequest,
+    db: web::Data<Database>
+) -> Result<HttpResponse> {
+    if let Some(user) = check_auth(&req, &db) {
+        let conn = db.get_connection();
+        
+        match Notification::find_by_user_id(user.id.unwrap(), conn) {
+            Ok(notifications) => {
+                Ok(HttpResponse::Ok().json(ApiResponse {
+                    success: true,
+                    message: None,
+                    data: Some(notifications),
+                }))
+            },
+            Err(e) => {
+                error!("Failed to fetch notifications: {}", e);
+                Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Failed to fetch notifications".to_string()),
+                    data: None,
+                }))
+            }
+        }
+    } else {
+        Ok(HttpResponse::Unauthorized().json(ApiResponse::<()> {
+            success: false,
+            message: Some("Unauthorized".to_string()),
+            data: None,
+        }))
+    }
+}
+
+/// Отметка уведомления как прочитанного
+pub async fn mark_notification_as_read(
+    req: HttpRequest,
+    path: web::Path<i64>,
+    db: web::Data<Database>
+) -> Result<HttpResponse> {
+    if let Some(_) = check_auth(&req, &db) {
+        let notification_id = path.into_inner();
+        let conn = db.get_connection();
+        
+        match Notification::mark_as_read(notification_id, conn) {
+            Ok(_) => {
+                Ok(HttpResponse::Ok().json(ApiResponse::<()> {
+                    success: true,
+                    message: Some("Notification marked as read".to_string()),
+                    data: None,
+                }))
+            },
+            Err(e) => {
+                error!("Failed to mark notification as read: {}", e);
+                Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                    success: false,
+                    message: Some("Failed to mark notification as read".to_string()),
+                    data: None,
+                }))
+            }
+        }
+    } else {
+        Ok(HttpResponse::Unauthorized().json(ApiResponse::<()> {
+            success: false,
+            message: Some("Unauthorized".to_string()),
+            data: None,
+        }))
+    }
+}

@@ -1,4 +1,10 @@
+/// Модуль для работы с пользователями
 pub mod user;
+/// Модуль для работы с репозиториями
 pub mod repository;
+/// Модуль для работы с базой данных
 pub mod db;
-// pub mod notification;
+/// Модуль для работы с уведомлениями
+pub mod notification;
+/// Модуль для работы с пул-реквестами
+pub mod pull_request;

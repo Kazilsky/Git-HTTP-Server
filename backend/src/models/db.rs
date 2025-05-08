@@ -1,7 +1,7 @@
 use rusqlite::{Connection, Result};
 use std::sync::{Arc, Mutex};
 
-/// База данных для хранения информации о пользователях и репозиториях
+/// База данных для хранения информации о пользователях, репозиториях и других данных
 #[derive(Clone)]
 pub struct Database {
     /// Соединение с базой данных SQLite
@@ -9,7 +9,7 @@ pub struct Database {
 }
 
 impl Database {
-    /// Создаёт новый экземпляр базы данных
+    /// Создаёт новый экземпляр базы данных и инициализирует необходимые таблицы
     /// 
     /// # Возвращает
     /// 
@@ -44,6 +44,54 @@ impl Database {
             )",
             [],
         )?;
+        
+        // Создаем таблицу для уведомлений
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY,
+                notification_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                is_read BOOLEAN NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )",
+            [],
+        )?;
+        
+        // Создаем таблицу для пул-реквестов
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS pull_requests (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                repository_id INTEGER NOT NULL,
+                source_branch TEXT NOT NULL,
+                target_branch TEXT NOT NULL,
+                author_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (repository_id) REFERENCES repositories (id),
+                FOREIGN KEY (author_id) REFERENCES users (id)
+            )",
+            [],
+        )?;
+        
+        // Создаем таблицу для комментариев к пул-реквестам
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS pull_request_comments (
+                id INTEGER PRIMARY KEY,
+                pull_request_id INTEGER NOT NULL,
+                author_id INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (pull_request_id) REFERENCES pull_requests (id),
+                FOREIGN KEY (author_id) REFERENCES users (id)
+            )",
+            [],
+        )?;
 
         // Добавим тестового пользователя, если он ещё не существует
         conn.execute(
@@ -64,4 +112,4 @@ impl Database {
     pub fn get_connection(&self) -> Arc<Mutex<Connection>> {
         self.conn.clone()
     }
-} 
+}

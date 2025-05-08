@@ -1,7 +1,7 @@
 use rusqlite::{params, Result};
 use std::sync::{Arc, Mutex};
 use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, NaiveDateTime};
 use rusqlite::Connection;
 use std::process::Command;
 use std::path::Path;
@@ -22,6 +22,24 @@ pub struct Repository {
     pub is_public: bool,
     /// Дата создания репозитория
     pub created_at: Option<DateTime<Utc>>,
+}
+
+/// Вспомогательная функция для парсинга даты/времени из строки
+fn parse_datetime(datetime_str: &str) -> Option<DateTime<Utc>> {
+    // Пробуем разные форматы даты
+    if let Ok(dt) = DateTime::parse_from_rfc3339(datetime_str) {
+        return Some(dt.with_timezone(&Utc));
+    }
+    
+    // Если формат не RFC3339, возможно это формат SQLite (YYYY-MM-DD HH:MM:SS)
+    let naive = NaiveDateTime::parse_from_str(datetime_str, "%Y-%m-%d %H:%M:%S")
+        .or_else(|_| NaiveDateTime::parse_from_str(datetime_str, "%Y-%m-%dT%H:%M:%S"));
+    
+    if let Ok(ndt) = naive {
+        return Some(DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc));
+    }
+    
+    None
 }
 
 impl Repository {
@@ -109,13 +127,7 @@ impl Repository {
                 description: row.get(3)?,
                 is_public: row.get(4)?,
                 
-                created_at: match DateTime::parse_from_rfc3339(&created_at) {
-                    Ok(dt) => Some(dt.with_timezone(&Utc)),
-                    Err(e) => {
-                        println!("Ошибка при парсинге даты '{}': {:?}", created_at, e);
-                        None
-                    }
-                },
+                created_at: parse_datetime(&created_at),
             })
         })?;
         
@@ -155,10 +167,10 @@ impl Repository {
                 owner_id: row.get(2)?,
                 description: row.get(3)?,
                 is_public: row.get(4)?,
-                created_at: Some(DateTime::parse_from_rfc3339(&created_at).unwrap().with_timezone(&Utc)),
+                created_at: parse_datetime(&created_at),
             }))
         } else {
             Ok(None)
         }
     }
-} 
+}
