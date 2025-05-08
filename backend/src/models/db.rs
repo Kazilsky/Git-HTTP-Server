@@ -15,7 +15,9 @@ impl Database {
     /// 
     /// * `Result<Database>` - Результат создания базы данных
     pub fn new() -> Result<Self> {
-        let conn = Connection::open("gitea.db")?;
+        let conn = Connection::open(
+            "gitea.db"
+        )?;
         
         // Создаём таблицы, если они ещё не существуют
         conn.execute(
