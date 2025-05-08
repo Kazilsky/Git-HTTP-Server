@@ -6,12 +6,38 @@ import './index.css';
 import Header from './components/Header';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
+import RepoPage from './pages/RepoPage';
+import PullRequestPage from './pages/PullRequestPage';
 
+/**
+ * Interface representing a user in the system
+ * @interface User
+ * @property {number} id - The user's unique identifier
+ * @property {string} username - The user's username
+ * @property {string|null} email - The user's email address (optional)
+ */
 interface User {
   id: number;
   username: string;
   email: string | null;
 }
+
+/**
+ * Main application component that handles routing and authentication state
+ * 
+ * @component
+ * @description
+ * The App component is the root component of the application that:
+ * - Manages user authentication state
+ * - Handles routing between different pages
+ * - Provides the main layout structure (header, main content, footer)
+ * - Persists user session in localStorage
+ * 
+ * @example
+ * ```tsx
+ * <App />
+ * ```
+ */
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -50,7 +76,8 @@ function App() {
             <Route path="/login" element={
               user ? <Navigate to="/" /> : <LoginPage onLogin={handleLogin} />
             } />
-            {/* Add more routes here as needed */}
+            <Route path="/repo/:repoName" element={<RepoPage />} />
+            <Route path="/repo/:repoName/pull/:pullId" element={<PullRequestPage />} />
           </Routes>
         </main>
         <footer className="bg-gray-800 text-white py-4">
@@ -63,4 +90,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;
