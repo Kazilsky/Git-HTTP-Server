@@ -45,6 +45,16 @@ impl Database {
             [],
         )?;
 
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS notification (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )",
+            [],
+        )?;
+
         // Добавим тестового пользователя, если он ещё не существует
         conn.execute(
             "INSERT OR IGNORE INTO users (username, password, email) VALUES ('Kazilsky', 'password123', 'test@example.com')",
@@ -64,4 +74,4 @@ impl Database {
     pub fn get_connection(&self) -> Arc<Mutex<Connection>> {
         self.conn.clone()
     }
-} 
+}

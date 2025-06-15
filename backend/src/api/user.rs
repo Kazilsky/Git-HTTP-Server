@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse, HttpRequest, Result};
 use crate::models::db::Database;
 use crate::models::user::User;
-use log::{error};
+use log::{error, info, debug};
 use serde::{Serialize, Deserialize};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
