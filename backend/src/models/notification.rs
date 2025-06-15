@@ -28,7 +28,7 @@ impl Notification {
     /// 
     /// * `Result<i64>` - ID созданного уведомления
     pub fn create (&self, conn: Arc<Mutex<Connection>>) -> Result<i64> {
-        let conn = conn.lock();
+        let conn = conn.lock().unwrap();
 
         conn.execute("
             INSERT INTO notification 
@@ -39,15 +39,15 @@ impl Notification {
         Ok(conn.last_insert_rowid())
     }
 
-    pub fn find_notification_by_name (&self, name: &str) -> Result<Option<Notification>> {
+    pub fn find_notification_by_name (&self, name: &str, conn: Arc<Mutex<Connection>>) -> Result<Option<Notification>> {
         let conn = conn.lock().map_err(|_| rusqlite::Error::InvalidQuery)?;
 
-        let mut stmt = conn.prepare("SELECT id, name, content, created_at FROM notification WHERE name = ?1");
+        let mut stmt = conn.prepare("SELECT id, name, content, created_at FROM notification WHERE name = ?1")?;
 
-        let row = stmt.query(params![name]);
+        let mut rows = stmt.query(params![name])?;
         if let Some(row) = rows.next()? {
             // Безопасное получение даты создания (с обработкой возможных ошибок формата)
-        let created_at_str: Option<String> = row.get(4).ok();
+        let created_at_str: Option<String> = row.get(3).ok();
             let created_at = if let Some(datetime_str) = created_at_str {
                 // Пробуем разные форматы даты
                 if let Ok(dt) = DateTime::parse_from_rfc3339(&datetime_str) {
