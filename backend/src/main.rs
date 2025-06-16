@@ -26,7 +26,7 @@
 //! # Примеры использования
 //! ```bash
 //! # Клонирование репозитория
-//! git clone http://localhost:8000/git/myrepo
+//! git clone http://localhost:8000/git/name/repo-name
 //!
 //! # Push изменений
 //! git push origin main
@@ -436,7 +436,7 @@ async fn handle_pack_file(req: HttpRequest) -> HttpResponse {
 ///
 /// Позволяет просматривать содержимое файлов (например, README, LICENSE) через HTTP.
 ///
-/// # Аргументы
+// # Аргументы
 /// * `req` - HTTP запрос с именем репозитория и путем к файлу
 ///
 /// # Возвращаемое значение

@@ -24,12 +24,13 @@ impl Database {
                 username TEXT NOT NULL UNIQUE,
                 password TEXT NOT NULL,
                 email TEXT UNIQUE,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                subscriber TEXT NOT NULL DEFAULT ordinary
             )",
             [],
         )?;
 
-        conn.execute(
+        conn.execute(`
             "CREATE TABLE IF NOT EXISTS repositories (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
