@@ -26,7 +26,7 @@
 //! # Примеры использования
 //! ```bash
 //! # Клонирование репозитория
-//! git clone http://localhost:8000/git/myrepo
+//! git clone http://localhost:8000/git/name/repo-name
 //!
 //! # Push изменений
 //! git push origin main
