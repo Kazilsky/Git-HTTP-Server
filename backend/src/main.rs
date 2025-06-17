@@ -127,24 +127,24 @@ async fn main() -> std::io::Result<()> {
             // API для работы с репозиториями
             .service(web::resource("/api/repos").route(web::get().to(repo::list_repos)))
             .service(web::resource("/api/repos/create").route(web::post().to(repo::create_repo)))
-            .service(web::resource("/api/repos/{repo_name}").route(web::get().to(repo::get_repo)))
+            .service(web::resource("/api/repos/{user_name}/{repo_name}").route(web::get().to(repo::get_repo)))
             
             // Git Smart HTTP Protocol endpoints
-            .service(web::resource("/git/{repo_name}/info/refs")
+            .service(web::resource("/git/{user_name}/{repo_name}/info/refs")
                 .route(web::get().to(git::handle_info_refs)))
-            .service(web::resource("/git/{repo_name}/git-upload-pack")
+            .service(web::resource("/git/{user_name}/{repo_name}/git-upload-pack")
                 .route(web::post().to(git::handle_upload_pack)))
-            .service(web::resource("/git/{repo_name}/git-receive-pack")
+            .service(web::resource("/git/{user_name}/{repo_name}/git-receive-pack")
                 .route(web::post().to(git::handle_receive_pack)))
             
             // Доступ к Git объектам
-            .service(web::resource("/git/{repo_name}/objects/info/packs")
+            .service(web::resource("/git/{user_name}/{repo_name}/objects/info/packs")
                 .route(web::get().to(git::handle_info_packs)))
-            .service(web::resource("/git/{repo_name}/objects/pack/{pack_file}")
+            .service(web::resource("/git/{user_name}/{repo_name}/objects/pack/{pack_file}")
                 .route(web::get().to(git::handle_pack_file)))
             
             // Доступ к файлам репозитория
-            .service(web::resource("/git/{repo_name}/file/{tail:.*}")
+            .service(web::resource("/git/{user_name}/{repo_name}/file/{tail:.*}")
                 .route(web::get().to(git::handle_text_file)))
     })
     .bind("127.0.0.1:8000")?

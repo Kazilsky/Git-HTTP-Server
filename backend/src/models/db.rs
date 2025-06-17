@@ -32,7 +32,7 @@ impl Database {
             [],
         )?;
 
-        conn.execute(`
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS repositories (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,

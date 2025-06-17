@@ -41,6 +41,7 @@ pub async fn handle_info_refs(req: HttpRequest) -> HttpResponse {
             .finish();
     }
 
+    let user_name = req.match_info().get("user_name").unwrap();
     let repo_name = req.match_info().get("repo_name").unwrap();
     let service = req.query_string();
     
@@ -61,6 +62,7 @@ pub async fn handle_info_refs(req: HttpRequest) -> HttpResponse {
     let output = Command::new("git")
         .arg(git_command)
         .arg("--advertise-refs")
+        .arg(&user_name)
         .arg(&repo_path)
         .output()
         .expect("Failed to execute git command");
@@ -125,6 +127,7 @@ pub async fn handle_upload_pack(req: HttpRequest, body: web::Bytes) -> HttpRespo
             .finish();
     }
 
+    let user_name = req.match_info().get("user_name").unwrap();
     let repo_name = req.match_info().get("repo_name").unwrap();
     let repo_path = PathBuf::from("repositories").join(format!("{}.git", repo_name));
 
@@ -134,7 +137,8 @@ pub async fn handle_upload_pack(req: HttpRequest, body: web::Bytes) -> HttpRespo
     let mut child = Command::new("git")
         .arg("upload-pack")
         .arg("--stateless-rpc")  // Важно для HTTP протокола
-        .arg(&repo_path)
+        .arg(&user_name)
+        .arg(&repo_name)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -189,7 +193,7 @@ pub async fn handle_receive_pack(req: HttpRequest, body: web::Bytes) -> HttpResp
             .append_header(("WWW-Authenticate", "Basic realm=\"Git\""))
             .finish()
     };
-
+    let user_name = req.match_info().get("user_name").unwrap();
     let repo_name = req.match_info().get("repo_name").unwrap();
     let repo_path = PathBuf::from("repositories").join(format!("{}.git", repo_name));
 
@@ -199,7 +203,8 @@ pub async fn handle_receive_pack(req: HttpRequest, body: web::Bytes) -> HttpResp
     let mut child = Command::new("git")
         .arg("receive-pack")
         .arg("--stateless-rpc")
-        .arg(&repo_path)
+        .arg(&user_name)
+        .arg(&repo_name)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -243,8 +248,10 @@ pub async fn handle_receive_pack(req: HttpRequest, body: web::Bytes) -> HttpResp
 /// P pack-9876543210fedcba.pack
 /// ```
 pub async fn handle_info_packs(req: HttpRequest) -> HttpResponse {
+    let user_name = req.match_info().get("user_name").unwrap();
     let repo_name = req.match_info().get("repo_name").unwrap();
     let repo_path = PathBuf::from("repositories")
+        .join(format!("{}", user_name))
         .join(format!("{}.git", repo_name))
         .join("objects/info/packs");
 
@@ -267,10 +274,12 @@ pub async fn handle_info_packs(req: HttpRequest) -> HttpResponse {
 /// # Формат файла
 /// Бинарный pack-файл в формате Git
 pub async fn handle_pack_file(req: HttpRequest) -> HttpResponse {
+    let user_name = req.match_info().get("user_name").unwrap();
     let repo_name = req.match_info().get("repo_name").unwrap();
     let pack_file = req.match_info().get("pack_file").unwrap();
     
     let repo_path = PathBuf::from("repositories")
+        .join(format!("{}", user_name))
         .join(format!("{}.git", repo_name))
         .join("objects/pack")
         .join(pack_file);
@@ -298,6 +307,7 @@ pub async fn handle_pack_file(req: HttpRequest) -> HttpResponse {
 /// GET /git/myrepo/file/README.md
 /// ```
 pub async fn handle_text_file(req: HttpRequest) -> HttpResponse {
+    let user_name = req.match_info().get("user_name").unwrap();
     let repo_name = req.match_info().get("repo_name").unwrap();
     let path = req.match_info().get("tail").unwrap();
     
@@ -305,7 +315,7 @@ pub async fn handle_text_file(req: HttpRequest) -> HttpResponse {
     
     // Используем git show для получения содержимого файла из HEAD
     let output = Command::new("git")
-        .args(&["--git-dir", &format!("repositories/{}.git", repo_name), "show", &format!("HEAD:{}", path)])
+        .args(&["--git-dir", &format!("repositories/{}/{}.git", user_name, repo_name), "show", &format!("HEAD:{}", path)])
         .output();
     
     match output {
