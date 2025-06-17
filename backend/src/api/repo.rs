@@ -1,12 +1,10 @@
 use actix_web::{web, HttpResponse, HttpRequest, Result};
 use crate::models::db::Database;
 use crate::models::repository::Repository;
-use crate::models::user::User;
 use log::{error};
 use serde::{Serialize, Deserialize};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::process::Command;
-use super::user::{self, ApiResponse, LoginRequest, RegisterRequest, CreateRepoRequest};
+use super::user::{self, ApiResponse, CreateRepoRequest};
 
 // Структура для автоматического парсинга query-параметров
 #[derive(Debug, Deserialize)]
@@ -56,67 +54,17 @@ pub async fn list_repos(
     }
 }
 
-/// Создание нового репозитория
+/// Создание нового репозитория (устаревший метод - теперь репозитории создаются через проекты)
 pub async fn create_repo(
-    req: HttpRequest,
-    repo_req: web::Json<CreateRepoRequest>,
-    db: web::Data<Database>
+    _req: HttpRequest,
+    _repo_req: web::Json<CreateRepoRequest>,
+    _db: web::Data<Database>
 ) -> Result<HttpResponse> {
-    if let Some(user) = user::check_auth(&req, &db) {
-        let conn = db.get_connection();
-        
-        // Создаем репозиторий в базе данных
-        let repo = Repository {
-            id: None,
-            name: repo_req.name.clone(),
-            description: repo_req.description.clone(),
-            owner_id: user.id.unwrap(),
-            is_public: repo_req.is_public,
-            created_at: None,
-        };
-        
-        match repo.create(conn) {
-            Ok(_) => {
-                // Инициализируем Git репозиторий
-                let repo_path = format!("repositories/{}.git", repo_req.name);
-                let init_result = Command::new("git")
-                    .args(&["init", "--bare", &repo_path])
-                    .output();
-                
-                match init_result {
-                    Ok(output) if output.status.success() => {
-                        Ok(HttpResponse::Ok().json(ApiResponse {
-                            success: true,
-                            message: Some("Repository created successfully".to_string()),
-                            data: Some(repo),
-                        }))
-                    },
-                    _ => {
-                        error!("Failed to initialize git repository");
-                        Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
-                            success: false,
-                            message: Some("Failed to initialize git repository".to_string()),
-                            data: None,
-                        }))
-                    }
-                }
-            },
-            Err(e) => {
-                error!("Failed to create repository: {}", e);
-                Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
-                    success: false,
-                    message: Some("Failed to create repository".to_string()),
-                    data: None,
-                }))
-            }
-        }
-    } else {
-        Ok(HttpResponse::Unauthorized().json(ApiResponse::<()> {
-            success: false,
-            message: Some("Unauthorized".to_string()),
-            data: None,
-        }))
-    }
+    Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
+        success: false,
+        message: Some("Direct repository creation is deprecated. Please create repositories within projects.".to_string()),
+        data: None,
+    }))
 }
 
 // pub async fn get_files_in_repo(

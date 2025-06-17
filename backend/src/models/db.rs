@@ -33,7 +33,7 @@ impl Database {
         )?;
 
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS repositories (
+            "CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 owner_id INTEGER NOT NULL,
@@ -42,6 +42,22 @@ impl Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (owner_id) REFERENCES users (id),
                 UNIQUE (name, owner_id)
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS repositories (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                project_id INTEGER NOT NULL,
+                owner_id INTEGER NOT NULL,
+                description TEXT,
+                is_public BOOLEAN NOT NULL DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (owner_id) REFERENCES users (id),
+                FOREIGN KEY (project_id) REFERENCES projects (id),
+                UNIQUE (name, project_id)
             )",
             [],
         )?;

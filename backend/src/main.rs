@@ -41,7 +41,7 @@ mod models;
 mod api;
 
 use models::db::Database;
-use api::{user, repo, git};
+use api::{user, repo, project, git};
 
 struct CorsConfig;
 
@@ -98,9 +98,12 @@ async fn main() -> std::io::Result<()> {
     // По умолчанию уровень логирования - debug
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
-    // Создаем каталог для репозиториев, если он не существует
+    // Создаем каталоги для репозиториев и проектов, если они не существуют
     if !std::path::Path::new("repositories").exists() {
         std::fs::create_dir("repositories")?;
+    }
+    if !std::path::Path::new("projects").exists() {
+        std::fs::create_dir("projects")?;
     }
     
     // Инициализация базы данных
@@ -124,7 +127,16 @@ async fn main() -> std::io::Result<()> {
             // API для работы с пользователями
             .service(web::resource("/api/user/profile").route(web::get().to(user::user_profile)))
             
-            // API для работы с репозиториями
+            // API для работы с проектами
+            .service(web::resource("/api/projects").route(web::get().to(project::list_projects)))
+            .service(web::resource("/api/projects/public").route(web::get().to(project::list_public_projects)))
+            .service(web::resource("/api/projects/create").route(web::post().to(project::create_project)))
+            .service(web::resource("/api/projects/{user_name}/{project_name}").route(web::get().to(project::get_project)))
+            .service(web::resource("/api/projects/{user_name}/{project_name}/config").route(web::get().to(project::get_project_config)))
+            .service(web::resource("/api/projects/{user_name}/{project_name}/config").route(web::put().to(project::update_project_config)))
+            .service(web::resource("/api/projects/{user_name}/{project_name}/repos/create").route(web::post().to(project::create_repo_in_project)))
+            
+            // API для работы с репозиториями (устаревшие endpoints)
             .service(web::resource("/api/repos").route(web::get().to(repo::list_repos)))
             .service(web::resource("/api/repos/create").route(web::post().to(repo::create_repo)))
             .service(web::resource("/api/repos/{user_name}/{repo_name}").route(web::get().to(repo::get_repo)))

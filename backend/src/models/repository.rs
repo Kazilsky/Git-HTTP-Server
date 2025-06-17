@@ -13,6 +13,8 @@ pub struct Repository {
     pub id: Option<i64>,
     /// Название репозитория
     pub name: String,
+    /// Идентификатор проекта
+    pub project_id: i64,
     /// Идентификатор владельца репозитория
     pub owner_id: i64,
     /// Описание репозитория
@@ -38,8 +40,8 @@ impl Repository {
         
         // Добавляем репозиторий в базу данных
         conn_guard.execute(
-            "INSERT INTO repositories (name, owner_id, description, is_public) VALUES (?1, ?2, ?3, ?4)",
-            params![self.name, self.owner_id, self.description, self.is_public],
+            "INSERT INTO repositories (name, project_id, owner_id, description, is_public) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![self.name, self.project_id, self.owner_id, self.description, self.is_public],
         )?;
         
         let repo_id = conn_guard.last_insert_rowid();
@@ -95,18 +97,18 @@ impl Repository {
         let conn = conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, name, owner_id, description, is_public, created_at FROM repositories WHERE owner_id = ?1"
+            "SELECT id, name, project_id, owner_id, description, is_public, created_at FROM repositories WHERE owner_id = ?1"
         )?;
         
         let repos = stmt.query_map(params![owner_id], |row| {
             Ok(Repository {
                 id: Some(row.get(0)?),
                 name: row.get(1)?,
-                owner_id: row.get(2)?,
-                description: row.get(3)?,
-                is_public: row.get(4)?,
-                created_at: row.get(5)?
-
+                project_id: row.get(2)?,
+                owner_id: row.get(3)?,
+                description: row.get(4)?,
+                is_public: row.get(5)?,
+                created_at: row.get(6)?,
             })
         })?;
         
@@ -132,24 +134,95 @@ impl Repository {
         let conn = conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, name, owner_id, description, is_public, created_at FROM repositories WHERE name = ?1"
+            "SELECT id, name, project_id, owner_id, description, is_public, created_at FROM repositories WHERE name = ?1"
         )?;
         
         let mut rows = stmt.query(params![name])?;
         
         if let Some(row) = rows.next()? {
-            let created_at: String = row.get(5)?;
-            
             Ok(Some(Repository {
                 id: Some(row.get(0)?),
                 name: row.get(1)?,
-                owner_id: row.get(2)?,
-                description: row.get(3)?,
-                is_public: row.get(4)?,
-                created_at: row.get(5)?,
+                project_id: row.get(2)?,
+                owner_id: row.get(3)?,
+                description: row.get(4)?,
+                is_public: row.get(5)?,
+                created_at: row.get(6)?,
             }))
         } else {
             Ok(None)
         }
     }
-} 
+
+    /// Получает список репозиториев проекта
+    /// 
+    /// # Параметры
+    /// 
+    /// * `project_id` - ID проекта
+    /// * `conn` - Соединение с базой данных
+    /// 
+    /// # Возвращает
+    /// 
+    /// * `Result<Vec<Repository>>` - Список репозиториев
+    pub fn find_by_project(project_id: i64, conn: Arc<Mutex<Connection>>) -> Result<Vec<Repository>> {
+        let conn = conn.lock().unwrap();
+        
+        let mut stmt = conn.prepare(
+            "SELECT id, name, project_id, owner_id, description, is_public, created_at FROM repositories WHERE project_id = ?1"
+        )?;
+        
+        let repos = stmt.query_map(params![project_id], |row| {
+            Ok(Repository {
+                id: Some(row.get(0)?),
+                name: row.get(1)?,
+                project_id: row.get(2)?,
+                owner_id: row.get(3)?,
+                description: row.get(4)?,
+                is_public: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?;
+        
+        let mut result = Vec::new();
+        for repo in repos {
+            result.push(repo?);
+        }
+        
+        Ok(result)
+    }
+
+    /// Находит репозиторий по имени и проекту
+    /// 
+    /// # Параметры
+    /// 
+    /// * `name` - Имя репозитория
+    /// * `project_id` - ID проекта
+    /// * `conn` - Соединение с базой данных
+    /// 
+    /// # Возвращает
+    /// 
+    /// * `Result<Option<Repository>>` - Найденный репозиторий или None
+    pub fn find_by_name_and_project(name: &str, project_id: i64, conn: Arc<Mutex<Connection>>) -> Result<Option<Repository>> {
+        let conn = conn.lock().unwrap();
+        
+        let mut stmt = conn.prepare(
+            "SELECT id, name, project_id, owner_id, description, is_public, created_at FROM repositories WHERE name = ?1 AND project_id = ?2"
+        )?;
+        
+        let mut rows = stmt.query(params![name, project_id])?;
+        
+        if let Some(row) = rows.next()? {
+            Ok(Some(Repository {
+                id: Some(row.get(0)?),
+                name: row.get(1)?,
+                project_id: row.get(2)?,
+                owner_id: row.get(3)?,
+                description: row.get(4)?,
+                is_public: row.get(5)?,
+                created_at: row.get(6)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+}
